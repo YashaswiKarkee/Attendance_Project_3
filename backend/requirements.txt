@@ -1,0 +1,10 @@
+django
+django-cors-headers
+djangorestframework
+django-channels
+channels-redis
+deepface
+djangorestframework-simplejwt
+daphne
+opencv-python
+requests
