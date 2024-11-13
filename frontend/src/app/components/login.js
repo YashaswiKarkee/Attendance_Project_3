@@ -54,6 +54,9 @@ const LoginComponent = () => {
           });
         }
         if (!data.error) {
+          sessionStorage.setItem("id", data.user_data.id);
+          console.log("User data:", data.user_data.id);
+          sessionStorage.setItem("username", data.user_data.username);
           sessionStorage.setItem("email", data.user_data.email);
           sessionStorage.setItem("role", data.user_data.role);
           sessionStorage.setItem("username", data.user_data.username);
@@ -104,6 +107,8 @@ const LoginComponent = () => {
         });
       }
       if (!data.error) {
+        sessionStorage.setItem("id", data.id);
+        sessionStorage.setItem("username", data.username);
         sessionStorage.setItem("email", data.email);
         sessionStorage.setItem("role", data.role);
         sessionStorage.setItem("username", data.username);

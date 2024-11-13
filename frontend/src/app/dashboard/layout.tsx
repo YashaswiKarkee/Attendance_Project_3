@@ -1,12 +1,16 @@
 // app/layout.tsx
 import React from "react";
 import Navbar from "@/app/components/navbar";
+import Sidebar from "@/app/components/sidebar";
 
 const Layout: React.FC<React.PropsWithChildren<{}>> = ({ children }) => {
   return (
-    <div>
+    <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main>{children}</main>
+      <div className="flex flex-1">
+        <Sidebar />
+        <main className="flex-1 p-6 bg-gray-50">{children}</main>
+      </div>
     </div>
   );
 };

@@ -10,6 +10,7 @@ from django.contrib.auth import authenticate, login, logout
 from deepface import DeepFace
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from rest_framework.pagination import PageNumberPagination
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -135,6 +136,7 @@ def login_user(request):
                             "message": "Login successful",
                             "role": user.role,
                             "email": user.email,
+                            "username": user.username,
                             "first_name": user.first_name,
                             "last_name": user.last_name,
                             "profile_picture": user.profile_picture.url if user.profile_picture else None,
@@ -256,7 +258,9 @@ def login_with_face(request):
 
                     # Return all the fields of the authenticated user
                     user_data = {
+                        "id": user.id,
                         "first_name": user.first_name,
+                        "username": user.username,
                         "last_name": user.last_name,
                         "email": user.email,
                         "role": user.role,
@@ -294,3 +298,47 @@ def login_with_face(request):
             if os.path.exists(temp_image_path):
                 os.remove(temp_image_path)
                 logger.info(f"Deleted temporary image: {temp_image_path}")
+
+
+class UserPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+@api_view(['GET'])
+def list_users(request):
+    """
+    API to list all users with pagination.
+    """
+    try:
+        # Get the user model dynamically (supports custom user models)
+        User = get_user_model()
+        # Fetch all users from the database
+        users = User.objects.all()
+        
+        # Apply pagination
+        paginator = UserPagination()
+        paginated_users = paginator.paginate_queryset(users, request)
+        
+        # Serialize user data
+        user_data = []
+        for user in paginated_users:
+            user_data.append({
+                "id": user.id,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "email": user.email,
+                "role": user.role,
+                "profile_picture": user.profile_picture.url if user.profile_picture else None,
+                "date_joined": user.date_joined,
+                "last_login": user.last_login,
+                "is_active": user.is_active,
+            })
+        
+        return paginator.get_paginated_response(user_data)
+    except Exception as e:
+        logger.error(f"An error occurred while fetching users: {str(e)}")
+        return Response(
+            {"error": True, "message": f"An error occurred while fetching users: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

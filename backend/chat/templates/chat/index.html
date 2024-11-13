@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>Chat Rooms</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .user-card {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding: 0.5rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            transition: background-color 0.2s;
+        }
+        .user-card:hover {
+            background-color: #f8f9fa;
+            text-decoration: none;
+            color: inherit;
+        }
+        .user-card img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            margin-right: 1rem;
+        }
+        .user-card .user-info {
+            display: flex;
+            flex-direction: column;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Chat Rooms</h1>
+        <h2 class="mb-4">Users you have chatted with:</h2>
+        <div class="list-group">
+            {% if chatted_users %}
+                {% for user in chatted_users %}
+                <a href="{% url 'room' sender_id=sender_id receiver_id=user.id %}" class="list-group-item list-group-item-action user-card">
+                    <img src="http://localhost:8000{{ user.profile_picture.url }}" alt="Profile Picture">
+                    <div class="user-info">
+                        <strong>{{ user.name }}</strong>
+                    </div>
+                </a>
+                {% endfor %}
+            {% else %}
+                <p>No chat messages yet.</p>
+            {% endif %}
+        </div>
+    </div>
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>

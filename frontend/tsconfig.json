@@ -22,6 +22,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/app/components/login.js", "src/app/components/register.js"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/app/components/login.js", "src/app/components/register.js", "src/app/dashboard/chat/page.tsx", "src/app/dashboard/chat/[room]/page.js"],
   "exclude": ["node_modules"]
 }
