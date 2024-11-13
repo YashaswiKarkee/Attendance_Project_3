@@ -55,7 +55,7 @@ const UserList: React.FC = () => {
   };
 
   return (
-    <div className="ml-64 p-6 bg-gray-50 min-h-screen">
+    <div className="ml-30 p-6 bg-gray-50 min-h-screen">
       <h2 className="text-xl font-semibold text-gray-700 mb-4">All Users</h2>
       <div className="bg-white shadow-md rounded-md p-4 space-y-4">
         {users.map((user) => (
@@ -63,9 +63,18 @@ const UserList: React.FC = () => {
             key={user.id}
             className="flex justify-between items-center p-4 border border-gray-200 rounded-md"
           >
-            <h1 className="text-black">
-              {user_id} + {user.id}
-            </h1>
+            <div className="flex items-center space-x-4">
+              <img
+                src={
+                  user.profile_picture
+                    ? `${process.env.NEXT_PUBLIC_BACKEND_BASE_URL}${user.profile_picture}`
+                    : "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+                }
+                alt={`${user.first_name} ${user.last_name}`}
+                className="w-12 h-12 rounded-full object-cover"
+              />
+            </div>
+
             <div>
               <h3 className="text-lg font-semibold text-gray-600">
                 {user.first_name} {user.last_name}
@@ -74,6 +83,7 @@ const UserList: React.FC = () => {
             </div>
             <Link
               href={`http://localhost:8000/api/chat/room/${user_id}/${user.id}/`}
+              target="_blank"
             >
               <p className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
                 Chat

@@ -2,6 +2,11 @@ from rest_framework import serializers
 from .models import CustomUser
 from django.core.exceptions import ValidationError
 
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model =CustomUser
+        fields = '__all__'
+
 class UserRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser

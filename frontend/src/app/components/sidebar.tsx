@@ -18,7 +18,7 @@ const Sidebar: React.FC = () => {
       <ul className="space-y-4">
         <li>
           <Link
-            href="/"
+            href="/dashboard"
             className="flex items-center space-x-2 text-gray-700 hover:text-blue-600"
           >
             <ChartBarIcon className="h-6 w-6" />
