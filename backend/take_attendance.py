@@ -1,150 +1,80 @@
+from helper_apis import *
 import cv2
-import requests
 import numpy as np
 from deepface import DeepFace
-from datetime import datetime
+from datetime import datetime, time
 import os
 
-# Load the face detection model (using OpenCV's pre-trained model)
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+#check for what happens if the model server is closed and again turned on as recognized users set will be discarded.
+#check for what happens if the model server is closed before attendance is logged in second time.
 
-# Path to the directory where user images are stored for recognition
-USER_IMAGES_DIR = './media/'
+# Directory containing embeddings for known faces
+database_path = "./media/"
 
-def recognize_face(frame, frame_count, last_faces):
-    # Convert the frame to grayscale (required by face detection)
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-    # Detect faces in the frame
-    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
-
-    recognized_faces = []
-
-    if frame_count % 60 == 0:  # Check every 1th frame for emotion, race, and user recognition
-        for (x, y, w, h) in faces:
-            # Crop the detected face
-            face = frame[y:y + h, x:x + w]
-
-            # Save the face image for recognition
-            face_image_path = "temp_face.jpg"
-            cv2.imwrite(face_image_path, face)
-
-            # Analyze the face to recognize the user (find the closest match)
-            try:
-                # Compare the detected face with known user images in the directory
-                result = DeepFace.find(face_image_path, db_path=USER_IMAGES_DIR, model_name='VGG-Face')
-
-                if result:
-                    # The first match (closest match) will be at index 0
-                    # Extracting username from the image filename (excluding path and extension)
-                    user_name = os.path.splitext(os.path.basename(result[0]['identity'][0]))[0]
-                    recognized_faces.append({
-                        "user_name": user_name,
-                        "face_location": (x, y, w, h),
-                    })
-
-                else:
-                    print("No match found for the detected face.")
-                    recognized_faces.append({
-                        "user_name": "Unknown",
-                        "face_location": (x, y, w, h),
-                    })
-
-            except Exception as e:
-                print(f"Error during face recognition: {e}")
-                # Analyze the face for emotion and race if not recognized
-                try:
-                    analysis = DeepFace.analyze(face_image_path, actions=['emotion', 'race'])
-                    emotion = analysis['emotion']['dominant_emotion']
-                    race = analysis['race']['dominant_race']
-                    print(f"Emotion: {emotion}, Race: {race}")
-                    recognized_faces.append({
-                        "user_name": "Unknown",
-                        "face_location": (x, y, w, h),
-                        "emotion": emotion,
-                        "race": race,
-                    })
-                except Exception as e:
-                    print(f"Error during emotion and race analysis: {e}")
-                    recognized_faces.append({
-                        "user_name": "Error",
-                        "face_location": (x, y, w, h),
-                })
-
-    else:
-        recognized_faces = last_faces
-
-    return recognized_faces, faces
-
-def log_attendance(user_name, timestamp):
-    """Function to send attendance data to backend"""
-    try:
-        # Send the attendance data to your backend
-        attendance_data = {
-            "user": user_name,  # The user's identifier (e.g., username)
-            "time": timestamp,  # Timestamp for when the attendance was taken
-        }
-        print(attendance_data)
-        # response = requests.post('http://your-backend-url/attendance', data=attendance_data)
-
-        # if response.status_code == 200:
-        #     print(f"Attendance logged for {user_name} at {timestamp}")
-        # else:
-        #     print("Failed to log attendance.")
-
-    except Exception as e:
-        print(f"Error sending attendance data: {e}")
+recognized_users = set()  # Track users who have been checked in
+last_check_out_time = {}  # Track the last check-out time for each user
+out_of_sight_duration = {}  # Track the duration a user is out of sight 
 
 def main():
-    # Open a connection to the webcam (camera index 0 is the default camera)
     cap = cv2.VideoCapture(0)
-    frame_count = 0  # Counter to track the number of frames processed
-    last_faces = []  # Store the previous frame's detected faces and attributes
-
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    
     while True:
         ret, frame = cap.read()
-
         if not ret:
-            print("Failed to grab frame")
             break
-
-        frame_count += 1  # Increment the frame count
-
-        # Recognize faces in the frame, but only analyze every 60th frame
-        recognized_faces, faces = recognize_face(frame, frame_count, last_faces)
-
-        # Draw rectangles around all detected faces
+        
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(50, 50))
         for (x, y, w, h) in faces:
+            # Draw rectangle around detected face
             cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
 
-        # Display the detected attributes for recognized faces
-        for face in recognized_faces:
-            (x, y, w, h) = face['face_location']
-            print(f"User: {face['user_name']}")
-            # Display user name
-            cv2.putText(frame, f"User: {face['user_name']}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
+            # Extract and resize the face region for recognition
+            face_img = frame[y:y+h, x:x+w]
+            
+            # Save the face image for recognition
+            face_image_path = "temp_face.jpg"
+            cv2.imwrite(face_image_path, face_img)
+            
+            try:
+                # Use DeepFace.find to match detected face with known faces in the database
+                results = DeepFace.find(face_image_path, db_path=database_path, enforce_detection=False, model_name="Facenet")
+                print(results)
 
-        # Display the resulting frame
-        cv2.imshow('Attendance System', frame)
+                if len(results) > 0:
+                    user_name = os.path.basename(results[0]["identity"].values[0]).split(".")[0]  # Assuming filename is the username
 
-        # Take attendance when 'q' is pressed
+                    if user_name not in recognized_users:
+                        # First time seeing this user, mark check-in
+                        timestamp = datetime.strptime(datetime.now().time(), '%H:%M:%S').time()
+                        log_attendance(user_name, timestamp)
+                        recognized_users.add(user_name)  # Avoid multiple check-ins for the same user
+                        last_check_out_time[user_name] = datetime.strptime(datetime.now().time(), '%H:%M:%S').time()
+                        cv2.putText(frame, f"Attendance marked for {user_name}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+                    last_check_out_time[user_name] = datetime.strptime(datetime.now().time(), '%H:%M:%S').time()
+                else:
+                    out_of_sight_duration[user_name] = out_of_sight_duration[user_name] if user_name in out_of_sight_duration else 0 + (datetime.strptime(datetime.now().time(), '%H:%M:%S').time() - last_check_out_time[user_name])
+                    last_check_out_time[user_name] = datetime.now().time()
+                    # if out_of_sight_duration[user_name] > 7200 or datetime.strptime(datetime.now().time(), '%H:%M:%S').time() >= datetime.strptime('18:00:00', '%H:%M:%S').time():  # 2 hours or 6 pm
+                    if out_of_sight_duration[user_name] > 10 or datetime.strptime(datetime.now().time(), '%H:%M:%S').time() >= datetime.strptime('18:00:00', '%H:%M:%S').time():  # 2 hours or 6 pm
+                        log_attendance(user_name, check_out_time=last_check_out_time[user_name], out_of_sight_duration=out_of_sight_duration[user_name])
+
+                cv2.putText(frame, "Face not recognized", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            except Exception as e:
+                print(f"Error in face recognition: {e}")
+
+        cv2.imshow("Attendance System", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
-            # Log attendance with timestamp
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            for face in recognized_faces:
-                print(f"User: {face['user_name']} at {timestamp}")
-                # Log attendance for the recognized user
-                log_attendance(face['user_name'], timestamp)
-
-        if cv2.waitKey(1) & 0xFF == ord('x'):
             break
-
-        # Update the last_faces for the next frame
-        last_faces = recognized_faces
-
-    # Release the capture and close windows
+    
     cap.release()
     cv2.destroyAllWindows()
+
+    # initialize_daily_attendance()
+    # log_attendance("test", datetime.now().time())
+    
 
 if __name__ == "__main__":
     main()

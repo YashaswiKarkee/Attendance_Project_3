@@ -1,14 +1,17 @@
 # views for create attendance, partially update and delete attendance, and list all attendance records, view all users with proper error handling.
 # views for create leave, partially update and delete leave, and list all leaves records, view all leaves for particular employee with proper error handling.
 
+from datetime import timedelta
+from django.db import DatabaseError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 import logging
 
-from accounts.models import CustomUser
+from accounts.models import CustomUser, Role
 from accounts.serializers import UserSerializer
+from backend.notification.models import Notification
 from .models import Attendance, Leave
 from .serializers import AttendanceSerializer, LeaveSerializer
 
@@ -39,9 +42,22 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             )
 
     def partial_update(self, request, *args, **kwargs):
-        kwargs['partial'] = True
         try:
-            return self.update(request, *args, **kwargs)
+            kwargs['partial'] = True
+            response = self.update(request, *args, **kwargs)
+            
+            # Calculate working hours if both check-in and check-out times are available
+            if 'check_in_time' in response.data and 'check_out_time' in response.data:
+                check_in_time = response.data['check_in_time']
+                check_out_time = response.data['check_out_time']
+                if check_in_time and check_out_time:
+                    working_hours = (check_out_time - check_in_time).total_seconds() / 3600
+                    response.data['working_hours'] = working_hours
+            return Response({"error": False, "message": "Updated.", "data": response}, status=status.HTTP_200_OK)
+        except CustomUser.DoesNotExist:
+            return Response({"error": True, "message": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Attendance.DoesNotExist:
+            return Response({"error": True, "message": "Attendance record not found for the specified date."}, status=status.HTTP_404_NOT_FOUND)
         except ValidationError as e:
             logger.error(f"Validation error during attendance update: {str(e)}")
             return Response(
@@ -66,6 +82,54 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 {"error": True, "message": "An unexpected error occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+            
+    @action(detail=False, methods=['get'], url_path='check-attendance')
+    def check_attendance(self, request):
+        user_id = request.query_params.get('user_id')
+        date = request.query_params.get('date')
+        
+        if not user_id or not date:
+            return Response({"error": True, "message": "user_id and date are required parameters."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = CustomUser.objects.get(id=user_id)
+            attendance_exists = Attendance.objects.filter(employee=user, date=date).exists()
+            if attendance_exists:
+                return Response({"error": True, "message": "Attendance exists for the user on the specified date."}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({"error": False, "message": "No attendance record found for the user on the specified date."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Unexpected error during attendance check: {str(e)}", exc_info=True)
+            return Response(
+                {"error": True, "message": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
+    @action(detail=False, methods=['get'], url_path='get-attendance-id')
+    def get_attendance_id(self, request):
+        username = request.query_params.get('username')
+        date = request.query_params.get('date')
+        
+        if not username or not date:
+            return Response({"error": True, "message": "username and date are required parameters."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = CustomUser.objects.get(username=username)
+            attendance = Attendance.objects.get(employee=user, date=date)
+            if attendance and attendance.status == 'A':
+                return Response({"error": False, "message": "Attendance exists for the user on the specified date.", "id": attendance.id, "is_first": True}, status=status.HTTP_200_OK)
+            elif attendance and attendance.status != 'A':
+                return Response({"error": False, "message": "Attendance found second time.","id": attendance.id, "is_first": False}, status=status.HTTP_200_OK)
+            else:
+                return Response({"error": True, "message": "No attendance record found for the user on the specified date."}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Unexpected error while obtaining attendance id: {str(e)}", exc_info=True)
+            return Response(
+                {"error": True, "message": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
+    
 
     @action(detail=False, methods=['get'])
     def list_all(self, request):
@@ -104,10 +168,104 @@ class LeaveViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response({"error": False, "message": "Successfully created", "data": serializer.data}, status=status.HTTP_201_CREATED)
-        return Response({"error": False, "message": "Some error occured", "data": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+            leave = serializer.save()
 
+            # Automatically create Attendance records for the leave period
+            start_date = leave.start_date
+            end_date = leave.end_date
+            current_date = start_date
+
+            while current_date <= end_date:
+                Attendance.objects.create(
+                    employee=leave.employee,
+                    date=current_date,
+                    status='O'  # 'O' for On Leave
+                )
+                current_date += timedelta(days=1)
+
+             # Create Notifications for all Managers and Administrators
+            managers_and_admins = CustomUser.objects.filter(role__in=[Role.MANAGER, Role.ADMIN])
+            for manager in managers_and_admins:
+                Notification.objects.create(
+                    receiver=manager,
+                    content=f"Leave request created by {leave.employee.username} from {start_date} to {end_date}. Waiting for approval."
+                )
+
+
+            return Response(
+                {"error": False, "message": "Leave successfully created", "data": serializer.data},
+                status=status.HTTP_200_OK
+            )
+        
+        return Response(
+            {"error": True, "message": "Some error occurred", "data": serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        # Check if leave is already approved
+        if instance.status == 'A':  # 'A' stands for Approved
+            return Response(
+                {"error": True, "message": "Cannot delete leave that has already been approved."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        self.perform_destroy(instance)
+        return Response(
+            {"error": False, "message": "Successfully deleted!"},
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+    def update(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+
+            # Check if leave is already approved
+            if instance.status == 'A' or instance.status == 'R':  # 'A' stands for Approved
+                return Response(
+                    {"error": True, "message": "Cannot update leave that has already been approved."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Proceed with update if not approved
+            serializer = self.get_serializer(instance, data=request.data, partial=kwargs.get('partial', False))
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            
+            # Create Notification for the employee who created the leave
+            Notification.objects.create(
+                receiver=instance.employee,
+                content=f"Your leave request from {instance.start_date} to {instance.end_date} has been verified. Current status: {instance.status}."
+            )
+
+            return Response(
+                {"error": False, "message": "Successfully updated", "data": serializer.data},
+                status=status.HTTP_200_OK
+            )
+
+        except ValidationError as e:
+            # Catch validation errors and provide a detailed response
+            return Response(
+                {"error": True, "message": "Validation error occurred", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        except DatabaseError:
+            # Handle database errors specifically
+            return Response(
+                {"error": True, "message": "Database error occurred while updating the leave."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        except Exception as e:
+            # General exception catch for any other unexpected errors
+            return Response(
+                {"error": True, "message": "An unexpected error occurred.", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
     def partial_update(self, request, *args, **kwargs):
         kwargs['partial'] = True
         return self.update(request, *args, **kwargs)
@@ -128,3 +286,17 @@ class LeaveViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Leave.DoesNotExist:
             return Response({"error": True, "message": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+    @action(detail=False, methods=['get'], url_path='list-all-leaves')
+    def list_all_leaves(self, request):
+        """List all leaves in the database with proper error handling."""
+        try:
+            queryset = self.get_queryset()
+            serializer = self.get_serializer(queryset, many=True)
+            return Response({"error": False, "message": "Successful", "data": serializer.data}, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Unexpected error during leave list retrieval: {str(e)}", exc_info=True)
+            return Response(
+                {"error": True, "message": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

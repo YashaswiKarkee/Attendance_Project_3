@@ -25,6 +25,7 @@ urlpatterns = [
     path('api/users/', include('accounts.urls')),
     path('api/chat/', include('chat.urls')),
     path('api/attendance/', include('attendance.urls')),
+    path('api/notification/', include('notification.urls')),
 ]
 
 if settings.DEBUG:

@@ -17,8 +17,8 @@ class Attendance(models.Model):
     
     employee = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="attendance")
     date = models.DateField(default=timezone.now)
-    check_in_time = models.DateTimeField(null=True, blank=True)
-    check_out_time = models.DateTimeField(null=True, blank=True)
+    check_in_time = models.TimeField(null=True, blank=True)
+    check_out_time = models.TimeField(null=True, blank=True)
     out_of_sight_time = models.DurationField(null=True, blank=True)
     status = models.CharField(max_length=1, choices=STATUS_CHOICES)
     working_hours = models.DurationField(null=True, blank=True)
