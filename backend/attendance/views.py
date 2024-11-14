@@ -9,11 +9,13 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 import logging
 
+
 from accounts.models import CustomUser, Role
 from accounts.serializers import UserSerializer
 from backend.notification.models import Notification
 from .models import Attendance, Leave
 from .serializers import AttendanceSerializer, LeaveSerializer
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +130,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 {"error": True, "message": "An unexpected error occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-            
-    
+
 
     @action(detail=False, methods=['get'])
     def list_all(self, request):
@@ -170,19 +171,6 @@ class LeaveViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             leave = serializer.save()
 
-            # Automatically create Attendance records for the leave period
-            start_date = leave.start_date
-            end_date = leave.end_date
-            current_date = start_date
-
-            while current_date <= end_date:
-                Attendance.objects.create(
-                    employee=leave.employee,
-                    date=current_date,
-                    status='O'  # 'O' for On Leave
-                )
-                current_date += timedelta(days=1)
-
              # Create Notifications for all Managers and Administrators
             managers_and_admins = CustomUser.objects.filter(role__in=[Role.MANAGER, Role.ADMIN])
             for manager in managers_and_admins:
@@ -202,22 +190,6 @@ class LeaveViewSet(viewsets.ModelViewSet):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-
-        # Check if leave is already approved
-        if instance.status == 'A':  # 'A' stands for Approved
-            return Response(
-                {"error": True, "message": "Cannot delete leave that has already been approved."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        self.perform_destroy(instance)
-        return Response(
-            {"error": False, "message": "Successfully deleted!"},
-            status=status.HTTP_204_NO_CONTENT
-        )
-
     def update(self, request, *args, **kwargs):
         try:
             instance = self.get_object()
@@ -227,18 +199,53 @@ class LeaveViewSet(viewsets.ModelViewSet):
                 return Response(
                     {"error": True, "message": "Cannot update leave that has already been approved."},
                     status=status.HTTP_400_BAD_REQUEST
-                )
+            )
 
             # Proceed with update if not approved
             serializer = self.get_serializer(instance, data=request.data, partial=kwargs.get('partial', False))
             serializer.is_valid(raise_exception=True)
             self.perform_update(serializer)
             
-            # Create Notification for the employee who created the leave
-            Notification.objects.create(
-                receiver=instance.employee,
-                content=f"Your leave request from {instance.start_date} to {instance.end_date} has been verified. Current status: {instance.status}."
-            )
+                
+            if instance.status == 'R':
+                # Create Notification for the employee who created the leave
+                Notification.objects.create(
+                    receiver=instance.employee,
+                    content=f"Your leave request from {instance.start_date} to {instance.end_date} has been rejected."
+                )
+                
+                start_date = instance.start_date
+                end_date = instance.end_date
+                current_date = timezone.now().date()
+                while current_date <= end_date:
+                    attendance_record = Attendance.objects.filter(employee=instance.employee, date=current_date)
+                    if attendance_record.exists():
+                        attendance_record.delete()
+                    current_date += timedelta(days=1)
+                
+            if instance.status == 'A':  # If the leave is approved
+                # Create Notification for the employee who created the leave
+                Notification.objects.create(
+                    receiver=instance.employee,
+                    content=f"Your leave request from {instance.start_date} to {instance.end_date} has been accepted."
+                )
+
+                # Create Attendance records for the leave period if they don't already exist
+                start_date = instance.start_date
+                end_date = instance.end_date
+                current_date = timezone.now().date()
+
+                while current_date <= end_date:
+                    # Check if Attendance record exists for this date
+                    if not Attendance.objects.filter(employee=instance.employee, date=current_date).exists():
+                        # If attendance does not exist, create it
+                        Attendance.objects.create(
+                            employee=instance.employee,
+                            date=current_date,
+                            status='O'  # 'O' for On Leave
+                        )
+                    current_date += timedelta(days=1)
+                
 
             return Response(
                 {"error": False, "message": "Successfully updated", "data": serializer.data},
@@ -272,6 +279,13 @@ class LeaveViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        # Check if leave is already approved or rejected
+        if instance.status in ['A', 'R']:  # 'A' stands for Approved, 'R' stands for Rejected
+            return Response(
+                {"error": True, "message": "Cannot delete leave that has already been approved or rejected."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         self.perform_destroy(instance)
         return Response({"error": False, "message": "Successfully deleted!"}, status=status.HTTP_204_NO_CONTENT)
 
