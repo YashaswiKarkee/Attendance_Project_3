@@ -46,6 +46,6 @@ class Leave(models.Model):
     reason = models.TextField()
 
     def __str__(self):
-        return f"{self.employee} - {self.start_date} to {self.end_date} - {self.get_status_display()}"
+        return f"{self.employee} - {self.start_date} to {self.end_date}"
 
     

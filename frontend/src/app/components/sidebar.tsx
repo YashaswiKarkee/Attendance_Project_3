@@ -7,6 +7,7 @@ import {
   ChartBarIcon,
   ChatBubbleLeftIcon,
 } from "@heroicons/react/24/outline";
+import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
 
 const Sidebar: React.FC = () => {
   const [role, setRole] = React.useState<string | null>(null);
@@ -34,6 +35,24 @@ const Sidebar: React.FC = () => {
             <span>Chat</span>
           </Link>
         </li>
+        <li>
+          <Link
+            href="/dashboard/my-leaves"
+            className="flex items-center space-x-2 text-gray-700 hover:text-blue-600"
+          >
+            <UserIcon className="h-6 w-6" />
+            <span>My Leaves</span>
+          </Link>
+        </li>
+        <li>
+          <Link
+            href="/dashboard/request-leaves"
+            className="flex items-center space-x-2 text-gray-700 hover:text-blue-600"
+          >
+            <PaperAirplaneIcon className="h-6 w-6" />
+            <span>Request for Leaves</span>
+          </Link>
+        </li>
         {role === "Admin" && (
           <li>
             <Link
@@ -46,26 +65,26 @@ const Sidebar: React.FC = () => {
           </li>
         )}
         {role === "Manager" && (
-          <li>
-            <Link
-              href="/team-attendance"
-              className="flex items-center space-x-2 text-gray-700 hover:text-blue-600"
-            >
-              <ClockIcon className="h-6 w-6" />
-              <span>Team Attendance</span>
-            </Link>
-          </li>
-        )}
-        {role === "Employee" && (
-          <li>
-            <Link
-              href="/my-attendance"
-              className="flex items-center space-x-2 text-gray-700 hover:text-blue-600"
-            >
-              <ClockIcon className="h-6 w-6" />
-              <span>My Attendance</span>
-            </Link>
-          </li>
+          <>
+            <li>
+              <Link
+                href="/team-attendance"
+                className="flex items-center space-x-2 text-gray-700 hover:text-blue-600"
+              >
+                <ClockIcon className="h-6 w-6" />
+                <span>Team Attendance</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/dashboard/all-leaves"
+                className="flex items-center space-x-2 text-gray-700 hover:text-blue-600"
+              >
+                <ClockIcon className="h-6 w-6" />
+                <span>All Leaves</span>
+              </Link>
+            </li>
+          </>
         )}
       </ul>
     </aside>

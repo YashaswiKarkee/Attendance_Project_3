@@ -12,7 +12,7 @@ import logging
 
 from accounts.models import CustomUser, Role
 from accounts.serializers import UserSerializer
-from backend.notification.models import Notification
+from notification.models import Notification
 from .models import Attendance, Leave
 from .serializers import AttendanceSerializer, LeaveSerializer
 from django.utils import timezone
@@ -176,7 +176,7 @@ class LeaveViewSet(viewsets.ModelViewSet):
             for manager in managers_and_admins:
                 Notification.objects.create(
                     receiver=manager,
-                    content=f"Leave request created by {leave.employee.username} from {start_date} to {end_date}. Waiting for approval."
+                    content=f"Leave request created by {leave.employee.username} from {leave.start_date} to {leave.end_date}. Waiting for approval."
                 )
 
 
