@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import moment from "moment"; // For date manipulations like filtering by day, month, year, week
 
-const Dashboard: React.FC = () => {
+const AllAttendance: React.FC = () => {
   const [attendanceData, setAttendanceData] = useState<any[]>([]); // Store all attendance data
   const [filteredAttendanceData, setFilteredAttendanceData] = useState<any[]>(
     []
@@ -19,28 +19,23 @@ const Dashboard: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1); // Total pages from API
   const [loading, setLoading] = useState(false); // Track loading state
   const [error, setError] = useState<string | null>(null); // Handle error state
-  const userId = sessionStorage.getItem("id");
 
   // Fetch all attendance data from backend
   const fetchAttendance = async () => {
-    if (!userId) {
-      setError("User ID is not available.");
-      return;
-    }
-
     setLoading(true);
     setError(null); // Reset error on new fetch
 
     try {
-      const url = `http://localhost:8000/api/attendance/get-attendance/user-attendance/${userId}/`;
+      const url = `http://localhost:8000/api/attendance/get-attendance/`;
       const response = await axios.get(url);
 
-      if (!response.data || !response.data.data) {
+      console.log(response.data);
+      if (!Array.isArray(response.data) || response.data.length === 0) {
         setError("No attendance data returned.");
         return;
       }
 
-      const data = response.data.data || [];
+      const data = response.data || [];
       if (data.length === 0) {
         setError("No attendance records found.");
       } else {
@@ -133,11 +128,10 @@ const Dashboard: React.FC = () => {
     setPage(newPage);
   };
 
+  // Fetch attendance data on component mount
   useEffect(() => {
-    if (userId) {
-      fetchAttendance();
-    }
-  }, [userId]);
+    fetchAttendance();
+  }, []);
 
   useEffect(() => {
     if (attendanceData.length > 0) {
@@ -247,4 +241,4 @@ const Dashboard: React.FC = () => {
   );
 };
 
-export default Dashboard;
+export default AllAttendance;

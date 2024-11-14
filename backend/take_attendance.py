@@ -5,9 +5,6 @@ from deepface import DeepFace
 from datetime import datetime, time
 import os
 
-#check for what happens if the model server is closed and again turned on as recognized users set will be discarded.
-#check for what happens if the model server is closed before attendance is logged in second time.
-
 # Directory containing embeddings for known faces
 database_path = "./media/"
 
@@ -47,21 +44,26 @@ def main():
 
                     if user_name not in recognized_users:
                         # First time seeing this user, mark check-in
-                        timestamp = datetime.strptime(datetime.now().time(), '%H:%M:%S').time()
+                        timestamp = datetime.now().strftime('%H:%M:%S')
                         log_attendance(user_name, timestamp)
                         recognized_users.add(user_name)  # Avoid multiple check-ins for the same user
-                        last_check_out_time[user_name] = datetime.strptime(datetime.now().time(), '%H:%M:%S').time()
+                        last_check_out_time[user_name] = datetime.now().strftime('%H:%M:%S')
                         cv2.putText(frame, f"Attendance marked for {user_name}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-                    last_check_out_time[user_name] = datetime.strptime(datetime.now().time(), '%H:%M:%S').time()
+                    # Display the username on the detected face rectangle
+                    cv2.putText(frame, user_name, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+                    last_check_out_time[user_name] = datetime.now().strftime('%H:%M:%S')
                 else:
-                    out_of_sight_duration[user_name] = out_of_sight_duration[user_name] if user_name in out_of_sight_duration else 0 + (datetime.strptime(datetime.now().time(), '%H:%M:%S').time() - last_check_out_time[user_name])
-                    last_check_out_time[user_name] = datetime.now().time()
-                    # if out_of_sight_duration[user_name] > 7200 or datetime.strptime(datetime.now().time(), '%H:%M:%S').time() >= datetime.strptime('18:00:00', '%H:%M:%S').time():  # 2 hours or 6 pm
-                    if out_of_sight_duration[user_name] > 10 or datetime.strptime(datetime.now().time(), '%H:%M:%S').time() >= datetime.strptime('18:00:00', '%H:%M:%S').time():  # 2 hours or 6 pm
+                    # Update out-of-sight duration and handle check-out if required
+                    out_of_sight_duration[user_name] = out_of_sight_duration.get(user_name, 0) + (
+                        datetime.strptime(datetime.now().strftime('%H:%M:%S'), '%H:%M:%S') - datetime.strptime(last_check_out_time[user_name], '%H:%M:%S')
+                    ).seconds
+                    last_check_out_time[user_name] = datetime.now().strftime('%H:%M:%S')
+                    
+                    # Check for long absence or end-of-day check-out
+                    if out_of_sight_duration[user_name] > 7200 or datetime.strptime(datetime.now().strftime('%H:%M:%S'), '%H:%M:%S') >= datetime.strptime('18:00:00', '%H:%M:%S'):
                         log_attendance(user_name, check_out_time=last_check_out_time[user_name], out_of_sight_duration=out_of_sight_duration[user_name])
 
-                cv2.putText(frame, "Face not recognized", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             except Exception as e:
                 print(f"Error in face recognition: {e}")
 
@@ -71,10 +73,6 @@ def main():
     
     cap.release()
     cv2.destroyAllWindows()
-
-    # initialize_daily_attendance()
-    # log_attendance("test", datetime.now().time())
-    
 
 if __name__ == "__main__":
     main()

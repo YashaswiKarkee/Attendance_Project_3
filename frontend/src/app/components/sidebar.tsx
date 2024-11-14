@@ -110,11 +110,20 @@ const Sidebar: React.FC = () => {
           <>
             <li>
               <Link
-                href="/team-attendance"
+                href="/dashboard/team-attendance"
                 className="flex items-center space-x-2 text-gray-700 hover:text-blue-600"
               >
                 <ClockIcon className="h-6 w-6" />
                 <span>Team Attendance</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/dashboard/all-attendance"
+                className="flex items-center space-x-2 text-gray-700 hover:text-blue-600"
+              >
+                <ClockIcon className="h-6 w-6" />
+                <span>All Attendance</span>
               </Link>
             </li>
             <li>

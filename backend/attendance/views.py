@@ -132,6 +132,25 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             )
 
 
+    @action(detail=False, methods=['get'], url_path='user-attendance/(?P<user_id>[^/.]+)')
+    def get_user_attendance(self, request, user_id=None):
+        """Get attendance records for a specific user with proper error handling."""
+        try:
+            user = CustomUser.objects.get(id=user_id)
+            attendance_records = Attendance.objects.filter(employee=user)
+            if not attendance_records.exists():
+                return Response({"error": True, "message": "No attendance records found for this user."}, status=status.HTTP_404_NOT_FOUND)
+            serializer = self.get_serializer(attendance_records, many=True)
+            return Response({"error": False, "message": "Successful", "data": serializer.data}, status=status.HTTP_200_OK)
+        except CustomUser.DoesNotExist:
+            return Response({"error": True, "message": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Unexpected error during user attendance retrieval: {str(e)}", exc_info=True)
+            return Response(
+                {"error": True, "message": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
     @action(detail=False, methods=['get'])
     def list_all(self, request):
         try:
