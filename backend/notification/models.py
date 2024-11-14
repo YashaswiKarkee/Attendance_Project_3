@@ -7,4 +7,4 @@ class Notification(models.Model):
     is_read = models.BooleanField(default=False)
 
     def __str__(self):
-        return f'Notification from {self.sender}'
+        return f'Notification for {self.receiver}'

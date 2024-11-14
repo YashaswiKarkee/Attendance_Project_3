@@ -5,9 +5,9 @@ import Swal from "sweetalert2";
 
 interface Leave {
   id: number;
-  employee: {
-    username: string;
-  };
+  employee_profile_picture: string;
+  employee_first_name: string;
+  employee_last_name: string;
   start_date: string;
   end_date: string;
   status: string;
@@ -42,12 +42,17 @@ const AllLeaves: React.FC = () => {
     }).then((result) => {
       if (result.isConfirmed) {
         axios
-          .put(`/api/leaves/${leaveId}/`, { status: "A" })
+          .patch(
+            `${process.env.NEXT_PUBLIC_BACKEND_BASE_URL}/api/attendance/leaves/${leaveId}/`,
+            { status: "A" } // "A" stands for Approved
+          )
           .then((response) => {
             Swal.fire("Approved", "Leave approved successfully", "success");
-            setLeaves(
-              leaves.map((leave) =>
-                leave.id === leaveId ? response.data : leave
+
+            // Update the leaves state with the correct status directly
+            setLeaves((prevLeaves) =>
+              prevLeaves.map((leave) =>
+                leave.id === leaveId ? { ...leave, status: "A" } : leave
               )
             );
           })
@@ -69,12 +74,17 @@ const AllLeaves: React.FC = () => {
     }).then((result) => {
       if (result.isConfirmed) {
         axios
-          .put(`/api/leaves/${leaveId}/`, { status: "R" })
+          .patch(
+            `${process.env.NEXT_PUBLIC_BACKEND_BASE_URL}/api/attendance/leaves/${leaveId}/`,
+            { status: "R" } // "R" stands for Rejected
+          )
           .then((response) => {
             Swal.fire("Rejected", "Leave rejected successfully", "success");
-            setLeaves(
-              leaves.map((leave) =>
-                leave.id === leaveId ? response.data : leave
+
+            // Update the leaves state with the correct status directly
+            setLeaves((prevLeaves) =>
+              prevLeaves.map((leave) =>
+                leave.id === leaveId ? { ...leave, status: "R" } : leave
               )
             );
           })
@@ -100,10 +110,17 @@ const AllLeaves: React.FC = () => {
           </tr>
         </thead>
         <tbody>
-          {leaves.map((leave) => (
-            <tr key={leave.id} className="hover:bg-gray-100">
-              <td className="py-2 px-4 border-b text-gray-500">
-                {leave.employee.username}
+          {leaves.map((leave, index) => (
+            <tr key={index} className="hover:bg-gray-100">
+              <td className="py-2 px-4 border-b text-gray-500 flex items-center">
+                <img
+                  className="w-8 h-8 rounded-full mr-2"
+                  src={`${process.env.NEXT_PUBLIC_BACKEND_BASE_URL}${leave.employee_profile_picture}`}
+                  alt="profile_pic"
+                />
+                <span>
+                  {leave.employee_first_name} {leave.employee_last_name}
+                </span>
               </td>
               <td className="py-2 px-4 border-b text-gray-500">
                 {leave.start_date}
@@ -122,7 +139,7 @@ const AllLeaves: React.FC = () => {
                 {leave.reason}
               </td>
               <td className="py-2 px-4 border-b text-gray-500">
-                {leave.status === "P" && (
+                {leave.status === "P" ? (
                   <div className="flex space-x-2">
                     <button
                       onClick={() => handleApproveLeave(leave.id)}
@@ -135,6 +152,24 @@ const AllLeaves: React.FC = () => {
                       className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
                     >
                       Reject
+                    </button>
+                  </div>
+                ) : leave.status === "A" ? (
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleRejectLeave(leave.id)}
+                      className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleApproveLeave(leave.id)}
+                      className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                    >
+                      Approve
                     </button>
                   </div>
                 )}

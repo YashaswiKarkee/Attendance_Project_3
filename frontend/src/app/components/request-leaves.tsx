@@ -1,16 +1,30 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 
 const RequestLeave: React.FC = () => {
-  const id = sessionStorage.getItem("id");
+  const [myId, setMyId] = useState<string | null>(null);
+
   const [leave, setLeave] = useState({
     start_date: "",
     end_date: "",
     reason: "",
-    employee: id,
+    employee: myId,
   });
+  useEffect(() => {
+    const id = sessionStorage.getItem("id");
+    setMyId(id);
+    setLeave({ start_date: "", end_date: "", reason: "", employee: id });
+  }, []);
+
+  // Get today's date in 'YYYY-MM-DD' format for the min attribute
+  const getTomorrowDate = () => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    return tomorrow.toISOString().split("T")[0]; // Format as 'YYYY-MM-DD'
+  };
 
   const handleLeaveChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -27,7 +41,7 @@ const RequestLeave: React.FC = () => {
       .then((response) => {
         console.log(response);
         Swal.fire("Success", "Leave requested successfully", "success");
-        setLeave({ start_date: "", end_date: "", reason: "" });
+        setLeave({ start_date: "", end_date: "", reason: "", employee: myId });
       })
       .catch((error) => {
         console.error(error);
@@ -50,6 +64,7 @@ const RequestLeave: React.FC = () => {
             className="w-full p-2 border border-gray-300 rounded text-gray-700"
             value={leave.start_date}
             onChange={handleLeaveChange}
+            min={getTomorrowDate()}
           />
         </div>
         <div>
@@ -63,6 +78,7 @@ const RequestLeave: React.FC = () => {
             className="w-full p-2 border border-gray-300 rounded text-gray-700"
             value={leave.end_date}
             onChange={handleLeaveChange}
+            min={leave.start_date}
           />
         </div>
         <div>

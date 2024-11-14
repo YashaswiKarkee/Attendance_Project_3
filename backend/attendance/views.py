@@ -194,14 +194,6 @@ class LeaveViewSet(viewsets.ModelViewSet):
         try:
             instance = self.get_object()
 
-            # Check if leave is already approved
-            if instance.status == 'A' or instance.status == 'R':  # 'A' stands for Approved
-                return Response(
-                    {"error": True, "message": "Cannot update leave that has already been approved."},
-                    status=status.HTTP_400_BAD_REQUEST
-            )
-
-            # Proceed with update if not approved
             serializer = self.get_serializer(instance, data=request.data, partial=kwargs.get('partial', False))
             serializer.is_valid(raise_exception=True)
             self.perform_update(serializer)
@@ -214,7 +206,7 @@ class LeaveViewSet(viewsets.ModelViewSet):
                     content=f"Your leave request from {instance.start_date} to {instance.end_date} has been rejected."
                 )
                 
-                start_date = instance.start_date
+                # start_date = instance.start_date
                 end_date = instance.end_date
                 current_date = timezone.now().date()
                 while current_date <= end_date:
@@ -303,11 +295,24 @@ class LeaveViewSet(viewsets.ModelViewSet):
         
     @action(detail=False, methods=['get'], url_path='list-all-leaves')
     def list_all_leaves(self, request):
+        employee_details = []
         """List all leaves in the database with proper error handling."""
         try:
             queryset = self.get_queryset()
             serializer = self.get_serializer(queryset, many=True)
-            return Response({"error": False, "message": "Successful", "data": serializer.data}, status=status.HTTP_200_OK)
+            for data in serializer.data:
+                employee = CustomUser.objects.get(id=data['employee'])
+                employee_details.append({
+                    "employee_first_name": employee.first_name,
+                    "employee_last_name": employee.last_name,
+                    "employee_profile_picture": employee.profile_picture.url,
+                    "id": data['id'],
+                    "start_date": data['start_date'],
+                    "end_date": data['end_date'],
+                    "status": data['status'],
+                    "reason": data['reason']
+                })
+            return Response({"error": False, "message": "Successful", "data": employee_details}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Unexpected error during leave list retrieval: {str(e)}", exc_info=True)
             return Response(

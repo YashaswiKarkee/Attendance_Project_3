@@ -12,25 +12,31 @@ interface Leave {
 }
 
 const EmployeeLeaves: React.FC = () => {
+  const [myId, setMyId] = useState<string | null>(null);
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [selectedLeave, setSelectedLeave] = useState<Leave | null>(null);
   const [updatedReason, setUpdatedReason] = useState<string>("");
 
   useEffect(() => {
-    // Fetch employee leaves
-    axios
-      .get(
-        `${
-          process.env.NEXT_PUBLIC_BACKEND_BASE_URL
-        }/api/attendance/leaves/employee/${sessionStorage.getItem("id")}/`
-      )
-      .then((response) => {
-        setLeaves(response.data.data);
-      })
-      .catch((error) => {
-        Swal.fire("Error", "Failed to load leaves", "error");
-      });
+    const id = sessionStorage.getItem("id");
+    setMyId(id);
   }, []);
+
+  useEffect(() => {
+    // Fetch employee leaves only when myId is populated
+    if (myId) {
+      axios
+        .get(
+          `${process.env.NEXT_PUBLIC_BACKEND_BASE_URL}/api/attendance/leaves/employee/${myId}`
+        )
+        .then((response) => {
+          setLeaves(response.data);
+        })
+        .catch((error) => {
+          Swal.fire("Error", "Failed to load leaves", "error");
+        });
+    }
+  }, [myId]);
 
   const handleUpdateLeave = (leaveId: number) => {
     const leave = leaves.find((l) => l.id === leaveId);
@@ -42,17 +48,28 @@ const EmployeeLeaves: React.FC = () => {
 
   const handleLeaveUpdate = () => {
     if (selectedLeave) {
-      const updatedLeave = { ...selectedLeave, reason: updatedReason };
+      const updatedLeave = { reason: updatedReason }; // Only send reason
+
       axios
-        .put(`/api/leaves/${selectedLeave.id}/`, updatedLeave)
+        .patch(
+          `${process.env.NEXT_PUBLIC_BACKEND_BASE_URL}/api/attendance/leaves/${selectedLeave.id}/`,
+          updatedLeave
+        )
         .then((response) => {
           Swal.fire("Success", "Leave updated successfully", "success");
-          setLeaves(
-            leaves.map((leave) =>
-              leave.id === selectedLeave.id ? response.data : leave
+
+          // Update leaves state directly with the updated reason
+          setLeaves((prevLeaves) =>
+            prevLeaves.map((leave) =>
+              leave.id === selectedLeave.id
+                ? { ...leave, reason: updatedReason } // Apply updated reason
+                : leave
             )
           );
+
+          // Clear selection after update
           setSelectedLeave(null);
+          setUpdatedReason("");
         })
         .catch((error) => {
           Swal.fire("Error", "Failed to update leave", "error");
@@ -62,7 +79,9 @@ const EmployeeLeaves: React.FC = () => {
 
   const handleDeleteLeave = (leaveId: number) => {
     axios
-      .delete(`/api/leaves/${leaveId}/`)
+      .delete(
+        `${process.env.NEXT_PUBLIC_BACKEND_BASE_URL}/api/attendance/leaves/${leaveId}/`
+      )
       .then(() => {
         Swal.fire("Deleted", "Leave deleted successfully", "success");
         setLeaves(leaves.filter((leave) => leave.id !== leaveId));
@@ -72,32 +91,9 @@ const EmployeeLeaves: React.FC = () => {
       });
   };
 
-  const handleApproveLeave = (leaveId: number) => {
-    axios
-      .put(`/api/leaves/${leaveId}/`, { status: "A" })
-      .then((response) => {
-        Swal.fire("Approved", "Leave approved successfully", "success");
-        setLeaves(
-          leaves.map((leave) => (leave.id === leaveId ? response.data : leave))
-        );
-      })
-      .catch((error) => {
-        Swal.fire("Error", "Failed to approve leave", "error");
-      });
-  };
-
-  const handleRejectLeave = (leaveId: number) => {
-    axios
-      .put(`/api/leaves/${leaveId}/`, { status: "R" })
-      .then((response) => {
-        Swal.fire("Rejected", "Leave rejected successfully", "success");
-        setLeaves(
-          leaves.map((leave) => (leave.id === leaveId ? response.data : leave))
-        );
-      })
-      .catch((error) => {
-        Swal.fire("Error", "Failed to reject leave", "error");
-      });
+  const handleCloseUpdateBox = () => {
+    setSelectedLeave(null);
+    setUpdatedReason("");
   };
 
   return (
@@ -116,8 +112,8 @@ const EmployeeLeaves: React.FC = () => {
           </tr>
         </thead>
         <tbody>
-          {leaves.map((leave) => (
-            <tr key={leave.id} className="hover:bg-gray-100">
+          {leaves.map((leave, index) => (
+            <tr key={index} className="hover:bg-gray-100">
               <td className="py-2 px-4 border-b text-gray-500">
                 {leave.start_date}
               </td>
@@ -134,36 +130,26 @@ const EmployeeLeaves: React.FC = () => {
               <td className="py-2 px-4 border-b text-gray-500">
                 {leave.reason}
               </td>
-              <td className="py-2 px-4 border-b text-gray-500 space-x-2">
-                {leave.status === "P" && (
-                  <>
-                    <button
-                      className="bg-green-500 text-white px-2 py-1 rounded"
-                      onClick={() => handleApproveLeave(leave.id)}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      className="bg-red-500 text-white px-2 py-1 rounded"
-                      onClick={() => handleRejectLeave(leave.id)}
-                    >
-                      Reject
-                    </button>
-                  </>
-                )}
-                <button
-                  className="bg-blue-500 text-white px-2 py-1 rounded"
-                  onClick={() => handleUpdateLeave(leave.id)}
-                >
-                  Edit
-                </button>
-                <button
-                  className="bg-gray-500 text-white px-2 py-1 rounded"
-                  onClick={() => handleDeleteLeave(leave.id)}
-                >
-                  Delete
-                </button>
-              </td>
+              {leave.status === "A" ? (
+                <td className="py-2 px-4 border-b text-gray-500">Accepted</td>
+              ) : leave.status === "R" ? (
+                <td className="py-2 px-4 border-b text-gray-500">Rejected</td>
+              ) : (
+                <td className="py-2 px-4 border-b text-gray-500 space-x-4">
+                  <button
+                    className="bg-blue-500 text-white px-2 py-1 rounded"
+                    onClick={() => handleUpdateLeave(leave.id)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="bg-red-500 text-white px-2 py-1 rounded"
+                    onClick={() => handleDeleteLeave(leave.id)}
+                  >
+                    Delete
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -172,9 +158,17 @@ const EmployeeLeaves: React.FC = () => {
       {/* Edit Leave */}
       {selectedLeave && (
         <div className="mt-4 p-4 border border-gray-200 rounded">
-          <h3 className="text-xl mb-2">Update Leave</h3>
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-xl text-gray-500">Update Leave</h3>
+            <button
+              className="bg-gray-300 text-gray-700 px-2 py-1 rounded"
+              onClick={handleCloseUpdateBox}
+            >
+              Close
+            </button>
+          </div>
           <textarea
-            className="w-full p-2 border border-gray-300 rounded mb-2"
+            className="w-full p-2 border border-gray-300 rounded mb-2 text-gray-500"
             value={updatedReason}
             onChange={(e) => setUpdatedReason(e.target.value)}
             rows={4}
