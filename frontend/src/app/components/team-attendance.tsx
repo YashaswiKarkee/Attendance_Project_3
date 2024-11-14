@@ -33,6 +33,7 @@ const TeamAttendance: React.FC = () => {
         `http://localhost:8000/api/users/list/?page=${page}`
       );
       const data = response.data.results || [];
+      console.log(data);
       if (data.length === 0) {
         setError("No users found.");
       } else {
@@ -178,16 +179,24 @@ const TeamAttendance: React.FC = () => {
         <div className="mt-4">
           <ul>
             {users.map((user, index) => (
-              <li key={index} className="flex justify-between items-center">
-                <button
-                  className="text-blue-500"
-                  onClick={() => handleUserSelect(user.id, user.first_name)}
-                >
-                  <span className="text-gray-700">
-                    {user.first_name} {user.last_name}
-                  </span>
-                </button>
-              </li>
+              <button
+                key={index}
+                className="w-full text-left"
+                onClick={() => handleUserSelect(user.id, user.first_name)}
+              >
+                <li className="flex justify-between items-center p-4 bg-white rounded-md shadow-md mb-2 hover:bg-gray-100 transition duration-200">
+                  <div className="flex items-center space-x-4">
+                    <img
+                      src={`${process.env.NEXT_PUBLIC_BACKEND_BASE_URL}${user.profile_picture}`}
+                      alt={`${user.first_name} ${user.last_name}`}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                    <span className="text-gray-700 font-medium">
+                      {user.first_name} {user.last_name}
+                    </span>
+                  </div>
+                </li>
+              </button>
             ))}
           </ul>
         </div>
