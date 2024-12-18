@@ -196,20 +196,17 @@ def logout_user(request):
 def login_with_face(request):
     """
     Handle user login using a profile picture and compare it with the uploaded image.
+    Find the best match based on the lowest distance metric.
     """
     if request.method == 'POST':
-        # Check if an image file is provided
         if 'image' not in request.FILES:
             return Response(
                 {"error": True, "message": "Please provide an image for facial recognition."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Get the uploaded image
         uploaded_image = request.FILES['image']
         logger.info(f"Received image: {uploaded_image.name}")
-
-        # Temporary storage for the uploaded image
         temp_image_path = os.path.join(settings.MEDIA_ROOT, 'temp_image.jpg')
 
         try:
@@ -218,71 +215,68 @@ def login_with_face(request):
                     f.write(chunk)
             logger.info(f"Saved temporary image to {temp_image_path}")
 
-        except Exception as e:
-            logger.error(f"Failed to save image: {str(e)}")
-            return Response(
-                {"error": True, "message": f"An error occurred while saving the image: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-        try:
-            # Get the user model dynamically (supports custom user models)
             User = get_user_model()
-
-            # Fetch all users from the database
-            logger.info("Fetching users from database...")
             users = User.objects.all()
-            logger.info(f"Fetched {len(users)} users.")
-
+            
             if not users:
                 return Response(
                     {"error": True, "message": "No users found."},
                     status=status.HTTP_404_NOT_FOUND
                 )
 
+            best_match = None
+            lowest_distance = float('inf')
+
             for user in users:
                 if not user.profile_picture:
-                    continue  # Skip users without a profile picture
+                    continue
 
                 profile_picture_path = user.profile_picture.path
                 logger.info(f"Comparing with profile picture of user {user.id}")
 
-                # Perform facial recognition comparison
-                print(temp_image_path, profile_picture_path)
-                result = DeepFace.verify(temp_image_path, profile_picture_path)
-                logger.info(f"DeepFace verification result: {result}")
+                try:
+                    result = DeepFace.verify(temp_image_path, profile_picture_path)
+                    logger.info(f"DeepFace verification result: {result}")
+                    
+                    # Get the distance metric from the result
+                    current_distance = result.get('distance', float('inf'))
+                    
+                    # Update best match if this distance is lower
+                    if current_distance < lowest_distance:
+                        lowest_distance = current_distance
+                        best_match = user
 
-                if result['verified']:
-                    # Face matched, log the user in
-                    login(request, user)
+                except Exception as e:
+                    logger.warning(f"Failed to verify face for user {user.id}: {str(e)}")
+                    continue
 
-                    # Return all the fields of the authenticated user
-                    user_data = {
-                        "id": user.id,
-                        "first_name": user.first_name,
-                        "username": user.username,
-                        "last_name": user.last_name,
-                        "email": user.email,
-                        "role": user.role,
-                        "profile_picture": user.profile_picture.url if user.profile_picture else None,
-                        "date_joined": user.date_joined,
-                        "last_login": user.last_login,
-                        "is_active": user.is_active,
-                    }
+            # Check if we found a match within acceptable threshold
+            if best_match and lowest_distance < 0.6:  # You can adjust this threshold
+                login(request, best_match)
+                user_data = {
+                    "id": best_match.id,
+                    "first_name": best_match.first_name,
+                    "username": best_match.username,
+                    "last_name": best_match.last_name,
+                    "email": best_match.email,
+                    "role": best_match.role,
+                    "profile_picture": best_match.profile_picture.url if best_match.profile_picture else None,
+                    "date_joined": best_match.date_joined,
+                    "last_login": best_match.last_login,
+                    "is_active": best_match.is_active,
+                }
 
-                    return Response(
-                        {
-                            "error": False,
-                            "message": "Login successful via facial recognition.",
-                            "user_data": user_data
-                        },
-                        status=status.HTTP_200_OK
-                    )
+                return Response(
+                    {
+                        "error": False,
+                        "message": "Login successful via facial recognition.",
+                        "user_data": user_data
+                    },
+                    status=status.HTTP_200_OK
+                )
 
-            # If no match is found
-            logger.warning("No matching face found.")
             return Response(
-                {"error": True, "message": "Face verification failed. No matching user found."},
+                {"error": True, "message": "No matching face found or confidence too low."},
                 status=status.HTTP_401_UNAUTHORIZED
             )
 
@@ -294,7 +288,6 @@ def login_with_face(request):
             )
 
         finally:
-            # Clean up the temporary image file
             if os.path.exists(temp_image_path):
                 os.remove(temp_image_path)
                 logger.info(f"Deleted temporary image: {temp_image_path}")

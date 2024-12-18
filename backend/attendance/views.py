@@ -48,13 +48,13 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             kwargs['partial'] = True
             response = self.update(request, *args, **kwargs)
             
-            # Calculate working hours if both check-in and check-out times are available
-            if 'check_in_time' in response.data and 'check_out_time' in response.data:
-                check_in_time = response.data['check_in_time']
-                check_out_time = response.data['check_out_time']
-                if check_in_time and check_out_time:
-                    working_hours = (check_out_time - check_in_time).total_seconds() / 3600
-                    response.data['working_hours'] = working_hours
+            # # Calculate working hours if both check-in and check-out times are available
+            # if 'check_in_time' in response.data and 'check_out_time' in response.data:
+            #     check_in_time = response.data['check_in_time']
+            #     check_out_time = response.data['check_out_time']
+            #     if check_in_time and check_out_time:
+            #         working_hours = (check_out_time - check_in_time).total_seconds() / 3600
+            #         response.data['working_hours'] = working_hours
             return Response({"error": False, "message": "Updated.", "data": response}, status=status.HTTP_200_OK)
         except CustomUser.DoesNotExist:
             return Response({"error": True, "message": "User not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -97,7 +97,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             user = CustomUser.objects.get(id=user_id)
             attendance_exists = Attendance.objects.filter(employee=user, date=date).exists()
             if attendance_exists:
-                return Response({"error": True, "message": "Attendance exists for the user on the specified date."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": True, "message": "Attendance exists for the user on the specified date."}, status=status.HTTP_200_OK)
             else:
                 return Response({"error": False, "message": "No attendance record found for the user on the specified date."}, status=status.HTTP_200_OK)
         except Exception as e:

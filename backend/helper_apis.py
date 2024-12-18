@@ -1,62 +1,62 @@
-
 import requests
-from datetime import datetime, date
+from datetime import date, timedelta
 
-base_url = "http://localhost:8000/api/attendance/"
+BASE_URL = "http://localhost:8000/api/attendance/"
+
+# Data structure to store attendance details
+ATTENDANCE_DATA = {}
 
 def initialize_daily_attendance():
-    """Function to initialize the daily attendance data"""
+    """
+    Initialize daily attendance by marking all employees absent.
+    """
+    global ATTENDANCE_DATA
+    ATTENDANCE_DATA = {}
+
     try:
-        response = requests.get(base_url + 'list-users/')
+        response = requests.get(BASE_URL + "list-users/")
         if response.status_code == 200:
-            data = response.json()
+            users = response.json()
             
-            for user in data:
-                user_id = user['id']
-                try:
-                    response = requests.get(base_url + 'get-attendance/check-attendance?user_id=' + str(user_id) + '&date=' + str(date.today()))
-                    if response.status_code == 200:
-                        try:
-                            response = requests.post(base_url + 'get-attendance/', data={"employee": user_id, "status": "A"})
-                            print(f"Daily attendance initialized for {user['username']}.")
-                        except Exception as e:
-                            print(f"Error initializing daily attendance: {e}")  
-                    else:
-                        continue
-                except Exception as e:
-                    print(f"Error initializing daily attendance: {e}") 
+
+            for user in users:
+                username = user["username"]
+                user_id = user["id"]
+                
+                response = requests.get(BASE_URL + "check-attendance/", params={"user_id": user_id, "date": date.today().strftime("%Y-%m-%d")})
+                data = response.json()
+                if response.status_code == 200 and data["error"] == False:
+                    ATTENDANCE_DATA[username] = {
+                        "check_in_time": None,
+                        "check_out_time": None,
+                        "out_of_sight_time": timedelta(),
+                        "working_hours": timedelta(),
+                        "status": "A",
+                        "username": username,
+                    }
+
+            print("Daily attendance initialized.")
         else:
-            print("Failed to initialize daily attendance.")
+            print("Failed to fetch users for daily attendance initialization.")
     except Exception as e:
         print(f"Error initializing daily attendance: {e}")
-        
-def log_attendance(user_name, timestamp, **kwargs):
-    """Function to send attendance data to backend"""
-    timestamp_time = datetime.strptime(timestamp, '%H:%M:%S').time()
-    if timestamp_time > datetime.strptime('09:30:00', '%H:%M:%S').time():
-        is_late = True
-    else:
-        is_late = False
+
+
+def log_attendance_on_quit():
+    """
+    Log attendance for all employees based on ATTENDANCE_DATA.
+    """
     try:
-        response = requests.get(base_url + 'get-attendance/get-attendance-id?username=' + user_name + '&date=' + str(date.today()))
-        if response.status_code == 200:
-            data = response.json()
-            if data.is_first:
-                try:
-                    if is_late:
-                        response = requests.patch(base_url + 'get-attendance/' + str(data.id) + '/', data={"check_in_time": timestamp, "status": "L"})
-                    else:
-                        response = requests.patch(base_url + 'get-attendance/' + str(data.id) + '/', data={"check_in_time": timestamp, "status": "P"})
-                except Exception as e:
-                    print(f"Error updating attendance: {e}")
-            if not data.is_first and 'check_out_time' in kwargs:
-                try:
-                    check_out_time = kwargs['check_out_time']
-                    out_of_sight_duration = kwargs['out_of_sight_duration']
-                    response = requests.patch(base_url + 'get-attendance/' + str(data.id) + '/', data={"check_out_time": check_out_time, "out_of_sight_time": out_of_sight_duration})
-                except Exception as e:
-                    print(f"Error updating attendance: {e}")
-        else:
-            print("Failed to get attendance id.")
+        for username, details in ATTENDANCE_DATA.items():
+            if details["attendance_id"]:
+                payload = {
+                    "check_in_time": details["check_in_time"],
+                    "check_out_time": details["check_out_time"],
+                    "out_of_sight_time": details["out_of_sight_time"].total_seconds(),
+                    "working_hours": details["working_hours"].total_seconds(),
+                    "status": details["status"],
+                }
+                requests.post(BASE_URL + "get-attendance/", json=payload)
+        print("Attendance logged successfully.")
     except Exception as e:
         print(f"Error logging attendance: {e}")
