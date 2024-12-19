@@ -2,11 +2,12 @@ import cv2
 import os
 from deepface import DeepFace
 from datetime import datetime, timedelta
-from helper_apis import log_attendance_on_quit, initialize_daily_attendance, ATTENDANCE_DATA
+from helper_apis import log_attendance_on_quit, initialize_daily_attendance
 
 # Constants
 DATABASE_PATH = "./media/profile_pics/"
 FRAME_SKIP = 2  # Process every nth frame to improve performance
+ATTENDANCE_DATA = {}
 
 def process_face(face_img, face_location, frame):
     """
@@ -38,9 +39,11 @@ def process_face(face_img, face_location, frame):
                 user_name = os.path.basename(user_name).split(".")[0]
                 print("user_name", user_name)
                 now = datetime.now()
+                print("attendance data", ATTENDANCE_DATA)
 
                 # Handle Check-in (only once per user)
                 if ATTENDANCE_DATA[user_name]["check_in_time"] is None:
+                    print("check_in_time is None")
                     # Check if employee is late (after 9:30 AM)
                     threshold_time = now.replace(hour=9, minute=30, second=0, microsecond=0)
                     if now > threshold_time:
@@ -50,6 +53,7 @@ def process_face(face_img, face_location, frame):
 
                 # Update last seen time and calculate out-of-sight duration
                 last_seen = ATTENDANCE_DATA[user_name].get("last_seen", now)
+                print("last_seen", ATTENDANCE_DATA[user_name].get("last_seen", now))
                 out_of_sight_duration = now - last_seen
                 ATTENDANCE_DATA[user_name]["out_of_sight_time"] += out_of_sight_duration
                 ATTENDANCE_DATA[user_name]["last_seen"] = now
@@ -98,11 +102,14 @@ def main():
     """
     Main function to capture frames, detect faces, and mark attendance.
     """
+    
+    global ATTENDANCE_DATA
     cap = cv2.VideoCapture(2)  # Use correct index for DroidCam or other cameras
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
     frame_count = 0
-    initialize_daily_attendance()
+    ATTENDANCE_DATA = initialize_daily_attendance()
+    print("ATTENDANCE_DATA_initialized", ATTENDANCE_DATA)
 
     while True:
         ret, frame = cap.read()
@@ -130,7 +137,7 @@ def main():
                     details["check_out_time"] = datetime.now()
                     details["working_hours"] = details["check_out_time"] - details["check_in_time"] - details["out_of_sight_time"]
             print(ATTENDANCE_DATA)
-            log_attendance_on_quit()
+            log_attendance_on_quit(ATTENDANCE_DATA=ATTENDANCE_DATA)
             break
 
     cap.release()

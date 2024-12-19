@@ -117,7 +117,10 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         
         try:
             user = CustomUser.objects.get(username=username)
-            attendance = Attendance.objects.get(employee=user, date=date)
+            try:
+                attendance = Attendance.objects.get(employee=user, date=date)
+            except Attendance.DoesNotExist:
+                return Response({"error": True, "message": "No attendance record found for the user on the specified date."}, status=status.HTTP_404_NOT_FOUND)
             if attendance and attendance.status == 'A':
                 return Response({"error": False, "message": "Attendance exists for the user on the specified date.", "id": attendance.id, "is_first": True}, status=status.HTTP_200_OK)
             elif attendance and attendance.status != 'A':
