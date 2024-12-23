@@ -30,6 +30,17 @@ class Role(models.TextChoices):
     EMPLOYEE = 'Employee', 'Employee'
     MANAGER = 'Manager', 'Manager'
 
+import os
+
+def user_directory_path(instance, filename):
+    # Extract file extension
+    ext = os.path.splitext(filename)[1]
+    # Use original filename or customize it
+    new_filename = f"{instance.username}{ext}"
+    # Return the desired path
+    return f"profile_pics/{instance.username}/{new_filename}"
+
+
 # User model
 class CustomUser(AbstractUser):
     # id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -37,8 +48,16 @@ class CustomUser(AbstractUser):
     username = models.CharField(max_length=255, unique=True)
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
-    profile_picture = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
-    face_encoding = models.BinaryField(blank=True, null=True)  # Store face encoding for recognition
+    profile_picture = models.ImageField(upload_to=user_directory_path, blank=True, null=True)
+    up = models.ImageField(upload_to=user_directory_path, blank=True, null=True)
+    down = models.ImageField(upload_to=user_directory_path, blank=True, null=True)
+    left = models.ImageField(upload_to=user_directory_path, blank=True, null=True)
+    right = models.ImageField(upload_to=user_directory_path, blank=True, null=True)
+
+
+
+
+    # face_encoding = models.BinaryField(blank=True, null=True)  # Store face encoding for recognition
     role = models.CharField(
         max_length=10,
         choices=Role.choices,

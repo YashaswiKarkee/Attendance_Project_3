@@ -3,7 +3,6 @@ from datetime import date, timedelta
 
 BASE_URL = "http://localhost:8000/api/attendance/"
 
-# Data structure to store attendance details
 ATTENDANCE_DATA_SET = {}
 
 def initialize_daily_attendance():
@@ -69,13 +68,22 @@ def log_attendance_on_quit(ATTENDANCE_DATA):
                 data = response.json()
                 print("data in log attendance", data)
                 if response.status_code == 200:
-                    payload = {
+                    if data["is_first"]:
+                        payload = {
                         "check_in_time": details["check_in_time"].strftime("%H:%M:%S") if details["check_in_time"] else None,
                         "check_out_time": details["check_out_time"].strftime("%H:%M:%S") if details["check_out_time"] else None,
                         "out_of_sight_time": details["out_of_sight_time"].total_seconds(),
                         "working_hours": details["working_hours"].total_seconds(),
+                        "status": details["status"],
                     }
-                    requests.patch(BASE_URL + "get-attendance/" + str(data["id"]), json=payload)
+                    else:
+                        payload = {
+                            "check_in_time": details["check_in_time"].strftime("%H:%M:%S") if details["check_in_time"] else None,
+                            "check_out_time": details["check_out_time"].strftime("%H:%M:%S") if details["check_out_time"] else None,
+                            "out_of_sight_time": details["out_of_sight_time"].total_seconds(),
+                            "working_hours": details["working_hours"].total_seconds(),
+                        }
+                    requests.patch(BASE_URL + "get-attendance/" + str(data["id"]) + "/", json=payload)
                 
                 if response.status_code == 400 or response.status_code == 404:
                     payload = {

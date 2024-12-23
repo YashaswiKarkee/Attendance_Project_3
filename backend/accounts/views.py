@@ -33,12 +33,13 @@ def register_user(request):
                 # Save user data
                 user = serializer.save()
 
-                # Handle profile picture if provided
-                profile_picture = request.FILES.get('profile_picture')
-                if profile_picture:
-                    profile_picture_response = handle_profile_picture(user, profile_picture)
-                    if profile_picture_response:
-                        return profile_picture_response
+                # Handle profile pictures if provided
+                image_fields = ['profile_picture', 'up', 'down', 'left', 'right']
+                for field in image_fields:
+                    if field in request.FILES:
+                        image_response = handle_profile_picture(user, request.FILES[field], field)
+                        if image_response:
+                            return image_response
 
                 return Response(
                     {"error": False, **serializer.data},
@@ -63,7 +64,7 @@ def register_user(request):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-def handle_profile_picture(user, profile_picture):
+def handle_profile_picture(user, profile_picture, field_name):
     try:
         # Validate image file type (only JPEG and PNG allowed)
         if not profile_picture.name.endswith(('.png', '.jpg', '.jpeg')):
@@ -74,13 +75,13 @@ def handle_profile_picture(user, profile_picture):
             )
 
         # Create a directory for the user if it doesn't exist
-        user_directory = os.path.join(settings.MEDIA_ROOT, user.username)
+        user_directory = os.path.join(settings.MEDIA_ROOT, 'profile_pics', user.username)
         if not os.path.exists(user_directory):
             os.makedirs(user_directory)
 
         # Determine the new file name with increment if necessary
         file_extension = os.path.splitext(profile_picture.name)[1]
-        base_file_name = f"{user.username}"
+        base_file_name = f"{user.username}_{field_name}"
         new_file_name = base_file_name + file_extension
         counter = 1
         while os.path.exists(os.path.join(user_directory, new_file_name)):
@@ -89,7 +90,7 @@ def handle_profile_picture(user, profile_picture):
 
         # Save the profile picture
         profile_picture.name = new_file_name
-        user.profile_picture = profile_picture
+        setattr(user, field_name, profile_picture)
         user.save()
 
         # Move the file to the user's directory
@@ -134,6 +135,8 @@ def login_user(request):
                         {
                             "error": False,
                             "message": "Login successful",
+                            "profile_picture": user.profile_picture.url if user.profile_picture else None,
+                            "id": user.id,
                             "role": user.role,
                             "email": user.email,
                             "username": user.username,
@@ -194,10 +197,6 @@ def logout_user(request):
 
 @api_view(['POST'])
 def login_with_face(request):
-    """
-    Handle user login using a profile picture and compare it with the uploaded image.
-    Find the best match based on the lowest distance metric.
-    """
     if request.method == 'POST':
         if 'image' not in request.FILES:
             return Response(
@@ -235,16 +234,20 @@ def login_with_face(request):
                 logger.info(f"Comparing with profile picture of user {user.id}")
 
                 try:
-                    result = DeepFace.verify(temp_image_path, profile_picture_path)
-                    logger.info(f"DeepFace verification result: {result}")
+                    # Use DeepFace.find to get a list of matches
+                    results = DeepFace.find(temp_image_path, db_path=settings.MEDIA_ROOT + '/profile_pics', model_name='Facenet')
                     
-                    # Get the distance metric from the result
-                    current_distance = result.get('distance', float('inf'))
-                    
-                    # Update best match if this distance is lower
-                    if current_distance < lowest_distance:
-                        lowest_distance = current_distance
-                        best_match = user
+                    if results:
+                        # Sort results by distance to find the best match
+                        df = results[0]
+                        df_sorted = df.sort_values(by="distance", ascending=True)
+                        best_match_record = df_sorted.iloc[0]
+                        current_distance = best_match_record['distance']
+                        
+                        # Update best match if this distance is lower
+                        if current_distance < lowest_distance:
+                            lowest_distance = current_distance
+                            best_match = user
 
                 except Exception as e:
                     logger.warning(f"Failed to verify face for user {user.id}: {str(e)}")

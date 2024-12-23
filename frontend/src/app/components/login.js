@@ -62,6 +62,13 @@ const LoginComponent = () => {
           sessionStorage.setItem("username", data.user_data.username);
           sessionStorage.setItem("first_name", data.user_data.first_name);
           sessionStorage.setItem("last_name", data.user_data.last_name);
+          console.log("Session Storage Data:");
+          console.log("ID:", sessionStorage.getItem("id"));
+          console.log("Username:", sessionStorage.getItem("username")); 
+          console.log("Email:", sessionStorage.getItem("email"));
+          console.log("Role:", sessionStorage.getItem("role"));
+          console.log("First Name:", sessionStorage.getItem("first_name"));
+          console.log("Last Name:", sessionStorage.getItem("last_name"));
           Swal.fire({
             title: "Login Successful",
             text: data.message,

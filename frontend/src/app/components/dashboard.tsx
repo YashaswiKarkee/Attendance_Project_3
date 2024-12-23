@@ -19,7 +19,13 @@ const Dashboard: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1); // Total pages from API
   const [loading, setLoading] = useState(false); // Track loading state
   const [error, setError] = useState<string | null>(null); // Handle error state
-  const userId = sessionStorage.getItem("id");
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const id = sessionStorage.getItem("id");
+    console.log(id);
+    setUserId(id);
+  }, []);
 
   // Fetch all attendance data from backend
   const fetchAttendance = async () => {
@@ -32,6 +38,7 @@ const Dashboard: React.FC = () => {
     setError(null); // Reset error on new fetch
 
     try {
+      console.log(userId);
       const url = `http://localhost:8000/api/attendance/get-attendance/user-attendance/${userId}/`;
       const response = await axios.get(url);
 
@@ -51,7 +58,7 @@ const Dashboard: React.FC = () => {
 
       setTotalPages(Math.ceil(data.length / 10)); // Assume 10 records per page
     } catch (error) {
-      console.error("Error fetching attendance data:", error);
+      // console.error("Error fetching attendance data:", error);
       setError("Failed to load attendance data.");
     } finally {
       setLoading(false);
