@@ -30,8 +30,11 @@ class LeaveSerializer(serializers.ModelSerializer):
         current_time = timezone.now().time()
 
         # Check if start date is today and time is before 7:00 AM
-        if start_date == current_date and current_time < datetime.strptime("07:00", "%H:%M").time():
+        if start_date == current_date and current_time <= datetime.strptime("07:00", "%H:%M").time():
             raise serializers.ValidationError("Start date cannot be before 7 AM today.")
+        
+        if start_date < current_date:
+            raise serializers.ValidationError("Start date cannot be in the past.")
         
         # Check if end date is before start date
         if end_date and end_date < start_date:

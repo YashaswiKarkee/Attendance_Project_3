@@ -215,73 +215,74 @@ def login_with_face(request):
             logger.info(f"Saved temporary image to {temp_image_path}")
 
             User = get_user_model()
-            users = User.objects.all()
+            # users = User.objects.all()
             
-            if not users:
-                return Response(
-                    {"error": True, "message": "No users found."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+            # if not users:
+            #     return Response(
+            #         {"error": True, "message": "No users found."},
+            #         status=status.HTTP_404_NOT_FOUND
+            #     )
 
-            best_match = None
-            lowest_distance = float('inf')
+            # best_match = None
+            # lowest_distance = float('inf')
 
-            for user in users:
-                if not user.profile_picture:
-                    continue
+            # for user in users:
+            #     if not user.profile_picture:
+            #         continue
 
-                profile_picture_path = user.profile_picture.path
-                logger.info(f"Comparing with profile picture of user {user.id}")
+            #     profile_picture_path = user.profile_picture.path
+            #     logger.info(f"Comparing with profile picture of user {user.id}")
 
-                try:
-                    # Use DeepFace.find to get a list of matches
-                    results = DeepFace.find(temp_image_path, db_path=settings.MEDIA_ROOT + '/profile_pics', model_name='Facenet')
+            try:
+                # Use DeepFace.find to get a list of matches
+                results = DeepFace.find(temp_image_path, db_path=settings.MEDIA_ROOT + '/profile_pics', model_name='Facenet')
                     
-                    if results:
-                        # Sort results by distance to find the best match
-                        df = results[0]
-                        df_sorted = df.sort_values(by="distance", ascending=True)
-                        best_match_record = df_sorted.iloc[0]
-                        current_distance = best_match_record['distance']
-                        
-                        # Update best match if this distance is lower
-                        if current_distance < lowest_distance:
-                            lowest_distance = current_distance
-                            best_match = user
+                if results:
+                    # Sort results by distance to find the best match
+                    df = results[0]
+                    df_sorted = df.sort_values(by="distance", ascending=True)
+                    best_match_record = df_sorted.iloc[0]
+                    print(best_match_record)
+                    normalized_path = os.path.normpath(best_match_record["identity"])
+                    print("user_name_old", best_match_record["identity"])
+                    user_name = normalized_path.split(os.sep + "profile_pics" + os.sep)[1].split(os.sep)[0]
+                    print("user_name", user_name)
+                    user = User.objects.get(username=user_name)
+                    if not user:
+                        return Response(
+                            {"error": True, "message": "No user found with this face."},
+                            status=status.HTTP_404_NOT_FOUND
+                        )
+                    login(request, user)
+                    user_data = {
+                        "id": user.id,
+                        "first_name": user.first_name,
+                        "username": user.username,
+                        "last_name": user.last_name,
+                        "email": user.email,
+                        "role": user.role,
+                        "profile_picture": user.profile_picture.url if user.profile_picture else None,
+                        "date_joined": user.date_joined,
+                        "last_login": user.last_login,
+                        "is_active": user.is_active,
+                    }
 
-                except Exception as e:
-                    logger.warning(f"Failed to verify face for user {user.id}: {str(e)}")
-                    continue
-
-            # Check if we found a match within acceptable threshold
-            if best_match and lowest_distance < 0.6:  # You can adjust this threshold
-                login(request, best_match)
-                user_data = {
-                    "id": best_match.id,
-                    "first_name": best_match.first_name,
-                    "username": best_match.username,
-                    "last_name": best_match.last_name,
-                    "email": best_match.email,
-                    "role": best_match.role,
-                    "profile_picture": best_match.profile_picture.url if best_match.profile_picture else None,
-                    "date_joined": best_match.date_joined,
-                    "last_login": best_match.last_login,
-                    "is_active": best_match.is_active,
-                }
-
+                    return Response(
+                        {
+                            "error": False,
+                            "message": "Login successful via facial recognition.",
+                            "user_data": user_data
+                        },
+                        status=status.HTTP_200_OK
+                    )
+                    
+                    
+            except Exception as e:
+                logger.warning(f"Failed to verify face for user: {str(e)}")
                 return Response(
-                    {
-                        "error": False,
-                        "message": "Login successful via facial recognition.",
-                        "user_data": user_data
-                    },
-                    status=status.HTTP_200_OK
+                    {"error": True, "message": "No matching face found or confidence too low."},
+                    status=status.HTTP_401_UNAUTHORIZED
                 )
-
-            return Response(
-                {"error": True, "message": "No matching face found or confidence too low."},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
 
         except Exception as e:
             logger.error(f"An error occurred during face verification: {str(e)}")

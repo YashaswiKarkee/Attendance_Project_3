@@ -249,16 +249,16 @@ class LeaveViewSet(viewsets.ModelViewSet):
                 end_date = instance.end_date
                 current_date = timezone.now().date()
 
-                while current_date <= end_date:
+                while start_date <= end_date:
                     # Check if Attendance record exists for this date
-                    if not Attendance.objects.filter(employee=instance.employee, date=current_date).exists():
+                    if not Attendance.objects.filter(employee=instance.employee, date=start_date).exists():
                         # If attendance does not exist, create it
                         Attendance.objects.create(
                             employee=instance.employee,
-                            date=current_date,
+                            date=start_date,
                             status='O'  # 'O' for On Leave
                         )
-                    current_date += timedelta(days=1)
+                    start_date += timedelta(days=1)
                 
 
             return Response(

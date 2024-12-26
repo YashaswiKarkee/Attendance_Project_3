@@ -78,7 +78,7 @@ const RequestLeave: React.FC = () => {
             className="w-full p-2 border border-gray-300 rounded text-gray-700"
             value={leave.end_date}
             onChange={handleLeaveChange}
-            min={leave.start_date}
+            min={getTomorrowDate()}
           />
         </div>
         <div>
